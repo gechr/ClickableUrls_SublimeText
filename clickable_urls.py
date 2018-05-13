@@ -37,15 +37,19 @@ class UrlHighlighter(sublime_plugin.EventListener):
         self.update_url_highlights_async(view)
 
     def on_close(self, view):
-        for map in [self.urls_for_view, self.scopes_for_view, self.ignored_views]:
+        for map in [
+                self.urls_for_view, self.scopes_for_view, self.ignored_views
+        ]:
             if view.id() in map:
                 del map[view.id()]
 
     """The logic entry point. Find all URLs in view, store and highlight them"""
+
     def update_url_highlights(self, view):
         settings = sublime.load_settings(UrlHighlighter.SETTINGS_FILENAME)
         should_highlight_urls = settings.get('highlight_urls', True)
-        max_url_limit = settings.get('max_url_limit', UrlHighlighter.DEFAULT_MAX_URLS)
+        max_url_limit = settings.get('max_url_limit',
+                                     UrlHighlighter.DEFAULT_MAX_URLS)
 
         if view.id() in UrlHighlighter.ignored_views:
             return
@@ -60,12 +64,14 @@ class UrlHighlighter(sublime_plugin.EventListener):
 
         UrlHighlighter.urls_for_view[view.id()] = urls
 
-        should_highlight_urls = sublime.load_settings(UrlHighlighter.SETTINGS_FILENAME).get('highlight_urls', True)
+        should_highlight_urls = sublime.load_settings(
+            UrlHighlighter.SETTINGS_FILENAME).get('highlight_urls', True)
         if (should_highlight_urls):
             self.highlight_urls(view, urls)
 
     """Same as update_url_highlights, but avoids race conditions with a
     semaphore."""
+
     def update_url_highlights_async(self, view):
         UrlHighlighter.highlight_semaphore.acquire()
         try:
@@ -75,8 +81,10 @@ class UrlHighlighter(sublime_plugin.EventListener):
 
     """Creates a set of regions from the intersection of urls and scopes,
     underlines all of them."""
+
     def highlight_urls(self, view, urls):
-        # We need separate regions for each lexical scope for ST to use a proper color for the underline
+        # We need separate regions for each lexical scope for ST to
+        # use a proper color for the underline
         scope_map = {}
         for url in urls:
             scope_name = view.scope_name(url.a)
@@ -90,6 +98,7 @@ class UrlHighlighter(sublime_plugin.EventListener):
     """Apply underlining with provided scope name to provided regions.
     Uses the empty region underline hack for Sublime Text 2 and native
     underlining for Sublime Text 3."""
+
     def underline_regions(self, view, scope_name, regions):
         if sublime.version() >= '3019':
             # in Sublime Text 3, the regions are just underlined
@@ -97,18 +106,21 @@ class UrlHighlighter(sublime_plugin.EventListener):
                 u'clickable-urls ' + scope_name,
                 regions,
                 scope_name,
-                flags=sublime.DRAW_NO_FILL|sublime.DRAW_NO_OUTLINE|sublime.DRAW_SOLID_UNDERLINE)
+                flags=sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE |
+                sublime.DRAW_SOLID_UNDERLINE)
         else:
             # in Sublime Text 2, the 'empty region underline' hack is used
-            char_regions = [sublime.Region(pos, pos) for region in regions for pos in range(region.a, region.b)]
-            view.add_regions(
-                u'clickable-urls ' + scope_name,
-                char_regions,
-                scope_name,
-                sublime.DRAW_EMPTY_AS_OVERWRITE)
+            char_regions = [
+                sublime.Region(pos, pos)
+                for region in regions
+                for pos in range(region.a, region.b)
+            ]
+            view.add_regions(u'clickable-urls ' + scope_name, char_regions,
+                             scope_name, sublime.DRAW_EMPTY_AS_OVERWRITE)
 
     """Store new set of underlined scopes for view. Erase underlining from
     scopes that were used but are not anymore."""
+
     def update_view_scopes(self, view, new_scopes):
         old_scopes = UrlHighlighter.scopes_for_view.get(view.id(), None)
         if old_scopes:
@@ -120,19 +132,26 @@ class UrlHighlighter(sublime_plugin.EventListener):
 
 
 def open_url(url):
-    browser =  sublime.load_settings(UrlHighlighter.SETTINGS_FILENAME).get('clickable_urls_browser')
+    browser = sublime.load_settings(
+        UrlHighlighter.SETTINGS_FILENAME).get('clickable_urls_browser')
     try:
         webbrowser.get(browser).open(url, autoraise=True)
-    except(webbrowser.Error):
-        sublime.error_message('Failed to open browser. See "Customizing the browser" in the README.')
+    except (webbrowser.Error):
+        sublime.error_message(
+            'Failed to open browser. See "Customizing the browser" in the README.'
+        )
 
 
 class OpenUrlUnderCursorCommand(sublime_plugin.TextCommand):
+
     def run(self, edit):
         if self.view.id() in UrlHighlighter.urls_for_view:
             for selection in self.view.sel():
                 if selection.empty():
-                    selection = next((url for url in UrlHighlighter.urls_for_view[self.view.id()] if url.contains(selection)), None)
+                    selection = next(
+                        (url
+                         for url in UrlHighlighter.urls_for_view[self.view.id()]
+                         if url.contains(selection)), None)
                     if not selection:
                         return
                 url = self.view.substr(selection)
@@ -140,24 +159,32 @@ class OpenUrlUnderCursorCommand(sublime_plugin.TextCommand):
 
 
 class OpenAllUrlsCommand(sublime_plugin.TextCommand):
+
     def run(self, edit):
         if self.view.id() in UrlHighlighter.urls_for_view:
-            for url in set([self.view.substr(url_region) for url_region in UrlHighlighter.urls_for_view[self.view.id()]]):
+            for url in set([
+                    self.view.substr(url_region) for url_region in
+                    UrlHighlighter.urls_for_view[self.view.id()]
+            ]):
                 open_url(url)
 
 
 class HoverOpenUrl(sublime_plugin.EventListener):
+
     def on_hover(self, view, point, hover_zone):
-        if hover_zone == sublime.HOVER_TEXT:
-            if view.id() in UrlHighlighter.urls_for_view:
-                pt = point
-                pt = next((url for url in UrlHighlighter.urls_for_view[view.id()]
-                           if url.contains(pt)), None)
-                if not pt:
-                    return
-                url = view.substr(pt)
-                view.show_popup(
-                    '<a href="open" style="text-decoration: none;">open</a>',
-                    flags=sublime.HIDE_ON_MOUSE_MOVE_AWAY,
-                    location=point,
-                    on_navigate=lambda href: open_url(url))
+        if hover_zone != sublime.HOVER_TEXT:
+            return
+        if view.id() not in UrlHighlighter.urls_for_view:
+            return
+        pt = point
+        pt = next((url for url in UrlHighlighter.urls_for_view[view.id()]
+                   if url.contains(pt)), None)
+        if not pt:
+            return
+        url = view.substr(pt)
+        view.show_popup(
+            '<a href="open" style="text-decoration: underline; font-weight: bold;">{}</a>'.
+            format(url),
+            flags=sublime.HIDE_ON_MOUSE_MOVE_AWAY,
+            location=point,
+            on_navigate=lambda href: open_url(url))
