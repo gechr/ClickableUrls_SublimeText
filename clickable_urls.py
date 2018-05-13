@@ -119,13 +119,13 @@ class UrlHighlighter(sublime_plugin.EventListener):
         UrlHighlighter.scopes_for_view[view.id()] = new_scopes
 
 
-
 def open_url(url):
     browser =  sublime.load_settings(UrlHighlighter.SETTINGS_FILENAME).get('clickable_urls_browser')
     try:
         webbrowser.get(browser).open(url, autoraise=True)
     except(webbrowser.Error):
         sublime.error_message('Failed to open browser. See "Customizing the browser" in the README.')
+
 
 class OpenUrlUnderCursorCommand(sublime_plugin.TextCommand):
     def run(self, edit):
@@ -144,3 +144,20 @@ class OpenAllUrlsCommand(sublime_plugin.TextCommand):
         if self.view.id() in UrlHighlighter.urls_for_view:
             for url in set([self.view.substr(url_region) for url_region in UrlHighlighter.urls_for_view[self.view.id()]]):
                 open_url(url)
+
+
+class HoverOpenUrl(sublime_plugin.EventListener):
+    def on_hover(self, view, point, hover_zone):
+        if hover_zone == sublime.HOVER_TEXT:
+            if view.id() in UrlHighlighter.urls_for_view:
+                pt = point
+                pt = next((url for url in UrlHighlighter.urls_for_view[view.id()]
+                           if url.contains(pt)), None)
+                if not pt:
+                    return
+                url = view.substr(pt)
+                view.show_popup(
+                    '<a href="open" style="text-decoration: none;">open</a>',
+                    flags=sublime.HIDE_ON_MOUSE_MOVE_AWAY,
+                    location=point,
+                    on_navigate=lambda href: open_url(url))
